@@ -1,0 +1,57 @@
+{
+  "$schema": "https://developer.microsoft.com/en-us/json-schemas/teams/v1.14/MicrosoftTeams.schema.json",
+  "manifestVersion": "1.14",
+  "version": "1.0.0",
+  "id": "d62c1035-8fc9-419b-8f8c-9600fed55b12",
+  "packageName": "com.microsoft.teams.samples",
+  "developer": {
+    "name": "Microsoft",
+    "websiteUrl": "https://www.microsoft.com",
+    "privacyUrl": "https://www.microsoft.com/privacy",
+    "termsOfUseUrl": "https://www.microsoft.com/termsofuse"
+  },
+  "icons": {
+    "color": "color.png",
+    "outline": "outline.png"
+  },
+  "name": {
+    "short": "Skills Marketplace",
+    "full": "Skills Marketplace with SSO"
+  },
+  "description": {
+    "short": "Test Task Module Scenario",
+    "full": "Simple Task Module Scenario Test"
+  },
+  "accentColor": "#FFFFFF",
+  "configurableTabs": [
+    {
+      "configurationUrl": "https://fm6t7csx-3978.aue.devtunnels.ms/configure.html",
+      "canUpdateConfiguration": true,
+      "scopes": ["team", "groupchat"]
+    }
+  ],
+  "staticTabs": [
+    {
+      "entityId": "com.microsoft.teams.taskmodule.statictab",
+      "name": "Tasks!",
+      "contentUrl": "https://fm6t7csx-3978.aue.devtunnels.ms/taskmodule.html",
+      "websiteUrl": "https://fm6t7csx-3978.aue.devtunnels.ms/taskmodule.html",
+      "scopes": ["personal"]
+    }
+  ],
+  "bots": [
+    {
+      "botId": "d62c1035-8fc9-419b-8f8c-9600fed55b12",
+      "scopes": ["personal"],
+      "isNotificationOnly": false,
+      "supportsCalling": false,
+      "supportsVideo": false,
+      "supportsFiles": false
+    }
+  ],
+  "permissions": ["identity", "messageTeamMembers"],
+  "validDomains": [
+    "fm6t7csx-3978.aue.devtunnels.ms",
+    "token.botframework.com"
+  ]
+}
