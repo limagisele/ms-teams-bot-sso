@@ -33,7 +33,6 @@ class LogoutDialog extends ComponentDialog {
             const text = innerDc.context.activity.text.toLowerCase();
             if (text === 'logout') {
                 const userTokenClient = innerDc.context.turnState.get(innerDc.context.adapter.UserTokenClientKey);
-                console.log(userTokenClient);
                 const { activity } = innerDc.context;
                 await userTokenClient.signOutUser(activity.from.id, this.connectionName, activity.channelId);
 

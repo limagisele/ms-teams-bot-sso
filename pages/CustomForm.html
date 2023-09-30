@@ -33,7 +33,6 @@
                 email: document.forms["customerForm"]["email"].value,
                 favoriteLanguage: document.forms["customerForm"]["favoriteLanguage"].selectedOptions[0].value
             }
-            console.log(`validating: ${customerInfo}`);
             microsoftTeams.tasks.submitTask(customerInfo, data.MicrosoftAppId);
         });
             return true;

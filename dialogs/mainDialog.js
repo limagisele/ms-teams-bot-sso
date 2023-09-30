@@ -1,33 +1,20 @@
-// Copyright (c) Microsoft Corporation. All rights reserved.
-// Licensed under the MIT License.
-
-const { ConfirmPrompt, DialogSet, DialogTurnStatus, OAuthPrompt, WaterfallDialog, TextPrompt } = require('botbuilder-dialogs');
-const { LogoutDialog } = require('./logoutDialog');
+const { ConfirmPrompt, DialogSet, DialogTurnStatus, OAuthPrompt, WaterfallDialog, Dialog, ComponentDialog } = require('botbuilder-dialogs');
 
 const CONFIRM_PROMPT = 'ConfirmPrompt';
 const MAIN_DIALOG = 'MainDialog';
 const MAIN_WATERFALL_DIALOG = 'MainWaterfallDialog';
 const OAUTH_PROMPT = 'OAuthPrompt';
 const { SimpleGraphClient } = require('../simpleGraphClient');
-// const { polyfills } = require('isomorphic-fetch');
-// const { CardFactory } = require('botbuilder-core');
 
 const {
-    MessageFactory,
     CardFactory
 } = require('botbuilder');
-const { TaskModuleUIConstants } = require('../models/taskModuleUIConstants');
+const { createFormAttachment } = require('../models/formSample');
 
-const Actions = [
-    TaskModuleUIConstants.AdaptiveCard,
-    TaskModuleUIConstants.CustomForm,
-    TaskModuleUIConstants.YouTube
-];
-
-class MainDialog extends LogoutDialog {
+class MainDialog extends ComponentDialog {
     constructor() {
         super(MAIN_DIALOG, process.env.connectionName);
-
+        this.userInput = {};
         this.addDialog(
             new OAuthPrompt(OAUTH_PROMPT, {
                 connectionName: process.env.connectionName,
@@ -37,15 +24,14 @@ class MainDialog extends LogoutDialog {
             })
         );
         this.addDialog(new ConfirmPrompt(CONFIRM_PROMPT));
-        this.addDialog(new TextPrompt('TextPrompt'));
         this.addDialog(
             new WaterfallDialog(MAIN_WATERFALL_DIALOG, [
                 this.promptStep.bind(this),
                 this.loginStep.bind(this),
                 this.ensureOAuth.bind(this),
-                this.displayToken.bind(this),
-                this.ensureOAuth.bind(this),
-                this.displayCards.bind(this)
+                this.displayForm.bind(this),
+                this.updateUserInput.bind(this),
+                this.sendResults.bind(this)
             ])
         );
 
@@ -72,6 +58,7 @@ class MainDialog extends LogoutDialog {
     async promptStep(stepContext) {
         try {
             console.log('prompt');
+            await stepContext.context.sendActivity('Logging you in...');
             return await stepContext.beginDialog(OAUTH_PROMPT);
         } catch (err) {
             console.error(err);
@@ -102,17 +89,15 @@ class MainDialog extends LogoutDialog {
             await stepContext.context.sendActivity({ attachments: [card] });
             return await stepContext.prompt(
                 CONFIRM_PROMPT,
-                'Would you like to view your token?'
+                'Would you like to update your skills?'
             );
         }
         return await stepContext.endDialog();
     }
 
     async ensureOAuth(stepContext) {
-        await stepContext.context.sendActivity('Thank you.');
-
-        const result = stepContext.result;
-        if (result) {
+        await stepContext.context.sendActivity('Well done! Please fill form below.');
+        if (stepContext.result) {
             // Call the prompt again because we need the token. The reasons for this are:
             // 1. If the user is already logged in we do not need to store the token locally in the bot and worry
             // about refreshing it. We can always just call the prompt again to get the token.
@@ -126,61 +111,33 @@ class MainDialog extends LogoutDialog {
         return await stepContext.endDialog();
     }
 
-    async displayToken(stepContext) {
+    async displayForm(stepContext) {
         const tokenResponse = stepContext.result;
         if (tokenResponse && tokenResponse.token) {
-            await stepContext.context.sendActivity(
-                `Here is your token ${ tokenResponse.token }`
-            );
-            return await stepContext.prompt(
-                CONFIRM_PROMPT,
-                'Would you like to update your skills?'
-            );
+            await stepContext.context.sendActivity({
+                attachments: [createFormAttachment()]
+            });
+            return Dialog.EndOfTurn;
         }
         return await stepContext.endDialog();
     }
 
-    async displayCards(stepContext) {
-        const tokenResponse = stepContext.result;
-        if (tokenResponse && tokenResponse.token) {
-            const card = MessageFactory.attachment(
-                this.getTaskModuleAdaptiveCardOptions()
-            );
-            console.log('here');
-            // TODO: fix and handle card actions
-            // https://stackoverflow.com/questions/54156007/handling-adaptive-cards-in-microsoft-bot-framework-v4-nodejs
-            await stepContext.context.sendActivity(card);
-            await stepContext.prompt(
-                'TextPrompt',
-                'waiting for your input...'
-            );
-        }
-        return await stepContext.endDialog();
+    async updateUserInput(stepContext) {
+        const formInput = stepContext.context.activity.value;
+        console.log(`User Input: ${ JSON.stringify(formInput) }`);
+        this.userInput.data = formInput;
+        return await stepContext.beginDialog(OAUTH_PROMPT);
     }
 
-    getTaskModuleAdaptiveCardOptions() {
-        const adaptiveCard = {
-            $schema: 'http://adaptivecards.io/schemas/adaptive-card.json',
-            version: '1.0',
-            type: 'AdaptiveCard',
-            body: [
-                {
-                    type: 'TextBlock',
-                    text: 'Adaptive Card',
-                    weight: 'bolder',
-                    size: 3
-                }
-            ],
-            actions: Actions.map((cardType) => {
-                return {
-                    type: 'Action.Submit',
-                    title: cardType.buttonTitle,
-                    data: { msteams: { type: 'task/fetch' }, data: cardType.id }
-                };
-            })
-        };
-
-        return CardFactory.adaptiveCard(adaptiveCard);
+    async sendResults(stepContext) {
+        const token = stepContext.result.token;
+        console.log(`Token: ${ JSON.stringify(token) }`);
+        this.userInput.token = token;
+        console.log(this.userInput);
+        await stepContext.context.sendActivity(
+            'Thanks! Your skills have been updated!'
+        );
+        return await stepContext.endDialog();
     }
 }
 

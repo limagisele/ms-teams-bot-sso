@@ -22,10 +22,8 @@ const {
     ConfigurationBotFrameworkAuthentication
     // TeamsSSOTokenExchangeMiddleware
 } = require('botbuilder');
-// const { TeamsTaskModuleBot } = require('./bots/teamsTaskModuleBot');
 const { TeamsBot } = require('./bots/teamsBot');
 const { MainDialog } = require('./dialogs/mainDialog');
-// const { env } = require('process');
 
 const botFrameworkAuthentication = new ConfigurationBotFrameworkAuthentication(process.env);
 
@@ -57,13 +55,6 @@ adapter.onTurnError = async (context, error) => {
     // Clear out state
     await conversationState.delete(context);
 };
-
-// Create the bot that will handle incoming messages.
-// const bot = new TeamsTaskModuleBot();
-// Define the state store for your bot.
-// See https://aka.ms/about-bot-state to learn more about using MemoryStorage.
-// A bot requires a state storage system to persist the dialog and user state between messages.
-// const memoryStorage = new MemoryStorage();
 
 // Create conversation and user state with in-memory storage provider.
 const conversationState = new ConversationState(memoryStorage);

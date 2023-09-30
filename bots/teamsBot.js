@@ -1,11 +1,5 @@
-// Copyright (c) Microsoft Corporation. All rights reserved.
-// Licensed under the MIT License.
-
-const { MessageFactory, CardFactory } = require('botbuilder');
-const { TaskModuleUIConstants } = require('../models/taskModuleUIConstants');
-const { TaskModuleIds } = require('../models/taskmoduleids');
+const { CardFactory } = require('botbuilder');
 const { FormInputs } = require('../models/formSample');
-const { TaskModuleResponseFactory } = require('../models/taskmoduleresponsefactory');
 const { DialogBot } = require('./dialogBot');
 
 class TeamsBot extends DialogBot {
@@ -44,63 +38,6 @@ class TeamsBot extends DialogBot {
             'Running dialog with signin/tokenExchange from an Invoke Activity.'
         );
         await this.dialog.run(context, this.dialogState);
-    }
-
-    async handleTeamsTaskModuleFetch(context, taskModuleRequest) {
-        console.log('fetching');
-        // Called when the user selects an options from the displayed HeroCard or
-        // AdaptiveCard.  The result is the action to perform.
-
-        const cardTaskFetchValue = taskModuleRequest.data.data;
-        var taskInfo = {}; // TaskModuleTaskInfo
-
-        if (cardTaskFetchValue === TaskModuleIds.YouTube) {
-            // Display the YouTube.html page
-            taskInfo.url = taskInfo.fallbackUrl =
-        this.baseUrl + '/' + TaskModuleIds.YouTube + '.html';
-            this.setTaskInfo(taskInfo, TaskModuleUIConstants.YouTube);
-        } else if (cardTaskFetchValue === TaskModuleIds.CustomForm) {
-            // Display the CustomForm.html page, and post the form data back via
-            // handleTeamsTaskModuleSubmit.
-            //     taskInfo.url = taskInfo.fallbackUrl =
-            // this.baseUrl + '/' + TaskModuleIds.CustomForm + '.html';
-            taskInfo.card = this.createFormAttachment();
-            this.setTaskInfo(taskInfo, TaskModuleUIConstants.CustomForm);
-        } else if (cardTaskFetchValue === TaskModuleIds.AdaptiveCard) {
-            // Display an AdaptiveCard to prompt user for text, and post it back via
-            // handleTeamsTaskModuleSubmit.
-            taskInfo.card = this.createAdaptiveCardAttachment();
-            this.setTaskInfo(taskInfo, TaskModuleUIConstants.AdaptiveCard);
-        }
-
-        return TaskModuleResponseFactory.toTaskModuleResponse(taskInfo);
-    }
-
-    setTaskInfo(taskInfo, uiSettings) {
-        taskInfo.height = uiSettings.height;
-        taskInfo.width = uiSettings.width;
-        taskInfo.title = uiSettings.title;
-    }
-
-    async handleTeamsTaskModuleSubmit(context, taskModuleRequest) {
-    // Called when data is being returned from the selected option (see `handleTeamsTaskModuleFetch').
-
-        // Echo the users input back.  In a production bot, this is where you'd add behavior in
-        // response to the input.
-        await context.sendActivity(
-            MessageFactory.text(
-                'handleTeamsTaskModuleSubmit: ' + JSON.stringify(taskModuleRequest.data)
-            )
-        );
-
-        // Return TaskModuleResponse
-        return {
-            // TaskModuleMessageResponse
-            task: {
-                type: 'message',
-                value: 'Thanks!'
-            }
-        };
     }
 
     createAdaptiveCardAttachment() {
