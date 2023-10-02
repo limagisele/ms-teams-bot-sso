@@ -1,6 +1,6 @@
-const { CardFactory } = require('botbuilder');
-const { FormInputs } = require('../models/formSample');
+const { TurnContext, MessageFactory, TeamsInfo } = require('botbuilder');
 const { DialogBot } = require('./dialogBot');
+const ProactiveAppIntallationHelper = require('../models/ProactiveAppIntallationHelper');
 
 class TeamsBot extends DialogBot {
     /**
@@ -9,20 +9,38 @@ class TeamsBot extends DialogBot {
    * @param {UserState} userState
    * @param {Dialog} dialog
    */
-    constructor(conversationState, userState, dialog) {
+    constructor(conversationState, userState, dialog, conversationReferences) {
         super(conversationState, userState, dialog);
+
+        this.conversationReferences = conversationReferences;
+        this.onConversationUpdate(async (context, next) => {
+            this.addConversationReference(context.activity);
+
+            await next();
+        });
 
         this.onMembersAdded(async (context, next) => {
             const membersAdded = context.activity.membersAdded;
             for (let cnt = 0; cnt < membersAdded.length; cnt++) {
                 if (membersAdded[cnt].id !== context.activity.recipient.id) {
                     await context.sendActivity(
-                        "Welcome to TeamsBot. Type anything to get logged in. Type 'logout' to sign-out."
+                        `Hi ${ membersAdded[cnt].name }. Welcome to TeamsBot. Type 'login' to get started.`
                     );
                 }
             }
 
             await next();
+        });
+
+        this.onMessage(async (context, next) => {
+            this.addConversationReference(context.activity);
+            TurnContext.removeRecipientMention(context.activity);
+            const text = context.activity.text?.trim().toLocaleLowerCase();
+            if (text && text.includes('install')) {
+                await this.InstallAppInTeamsAndChatMembersPersonalScope(context);
+            } else if (text && text.includes('send')) {
+                await this.SendNotificationToAllUsersAsync(context);
+            }
         });
     }
 
@@ -40,222 +58,80 @@ class TeamsBot extends DialogBot {
         await this.dialog.run(context, this.dialogState);
     }
 
-    createAdaptiveCardAttachment() {
-        return CardFactory.adaptiveCard({
-            version: '1.0.0',
-            type: 'AdaptiveCard',
-            body: [
-                {
-                    type: 'TextBlock',
-                    text: 'Enter Text Here'
-                },
-                {
-                    type: 'Input.Text',
-                    id: 'userInput',
-                    placeholder: 'add some text and submit',
-                    IsMultiline: true
-                }
-            ],
-            actions: [
-                {
-                    type: 'Action.Submit',
-                    title: 'Submit'
-                }
-            ]
+    async InstallAppInTeamsAndChatMembersPersonalScope(context) {
+        let NewAppInstallCount = 0;
+        let ExistingAppInstallCount = 0;
+        let result = '';
+        const objProactiveAppIntallationHelper = new ProactiveAppIntallationHelper();
+        const teamMembers = await TeamsInfo.getPagedMembers(context);
+        const count = teamMembers.members.map(async (member) => {
+            if (!this.conversationReferences[member.aadObjectId]) {
+                result =
+                    await objProactiveAppIntallationHelper.InstallAppInPersonalScope(
+                        context.activity.conversation.tenantId,
+                        member.aadObjectId
+                    );
+            }
+            return result;
         });
+        (await Promise.all(count)).forEach(function(statusCode) {
+            if (statusCode === 409) ExistingAppInstallCount++;
+            else if (statusCode === 201) NewAppInstallCount++;
+        });
+        await context.sendActivity(
+            MessageFactory.text(
+                'Existing: ' +
+          ExistingAppInstallCount +
+          ' \n\n Newly Installed: ' +
+          NewAppInstallCount
+            )
+        );
     }
 
-    createFormAttachment() {
-        return CardFactory.adaptiveCard({
-            $schema: 'http://adaptivecards.io/schemas/adaptive-card.json',
-            type: 'AdaptiveCard',
-            version: '1.5',
-            body: [
-                {
-                    type: 'TextBlock',
-                    size: 'medium',
-                    weight: 'bolder',
-                    text: FormInputs.ParticipantInfoForm.title,
-                    horizontalAlignment: 'center',
-                    wrap: true,
-                    style: 'heading'
-                },
-                {
-                    type: 'Input.Text',
-                    label: 'Name',
-                    style: 'text',
-                    id: 'SimpleVal',
-                    isRequired: true,
-                    errorMessage: 'Name is required',
-                    placeholder: 'Enter your name'
-                },
-                {
-                    type: 'Input.Text',
-                    label: 'Email',
-                    style: 'email',
-                    id: 'EmailVal',
-                    placeholder: 'Enter your email'
-                },
-                {
-                    type: 'Input.Text',
-                    label: 'Comments',
-                    style: 'text',
-                    isMultiline: true,
-                    id: 'MultiLineVal',
-                    placeholder: 'Enter any comments'
-                },
-                {
-                    type: 'Input.Number',
-                    label: 'Quantity (Minimum -5, Maximum 5)',
-                    min: -5,
-                    max: 5,
-                    value: 1,
-                    id: 'NumVal',
-                    errorMessage: 'The quantity must be between -5 and 5'
-                },
-                {
-                    type: 'Input.Date',
-                    label: 'Due Date',
-                    id: 'DateVal',
-                    value: '2017-09-20'
-                },
-                {
-                    type: 'Input.Time',
-                    label: 'Start time',
-                    id: 'TimeVal',
-                    value: '16:59'
-                },
-                {
-                    type: 'TextBlock',
-                    size: 'medium',
-                    weight: 'bolder',
-                    text: FormInputs.Survey.title,
-                    horizontalAlignment: 'center',
-                    wrap: true,
-                    style: 'heading'
-                },
-                {
-                    type: 'Input.ChoiceSet',
-                    id: 'CompactSelectVal',
-                    label: FormInputs.Survey.questions[0].question,
-                    style: 'compact',
-                    value: '1',
-                    choices: [
-                        {
-                            title: 'Red',
-                            value: '1'
-                        },
-                        {
-                            title: 'Green',
-                            value: '2'
-                        },
-                        {
-                            title: 'Blue',
-                            value: '3'
+    async SendNotificationToAllUsersAsync(context) {
+        const teamMembers = await TeamsInfo.getPagedMembers(context);
+        const sentMsgCout = teamMembers.members.length;
+        await Promise.all(teamMembers.members.map(async (member) => {
+            const proactiveMessage = MessageFactory.text('Hi. New form available to update your skills!');
+            const conversationParameters = {
+                isGroup: false,
+                bot: context.activity.recipient,
+                tenantId: context.activity.conversation.tenantId,
+                members: [{ id: member.aadObjectId ?? member.id }]
+            };
+            await context.adapter.createConversationAsync(
+                process.env.MicrosoftAppId,
+                context.activity.channelId,
+                context.activity.serviceUrl,
+                null,
+                conversationParameters,
+                async (context) => {
+                    const conversationReference = TurnContext.getConversationReference(
+                        context.activity
+                    );
+                    this.conversationReferences[conversationReference.conversation.id] = conversationReference;
+                    console.log('conversationReference', conversationReference);
+
+                    await context.adapter.continueConversationAsync(
+                        process.env.MicrosoftAppId,
+                        conversationReference,
+                        async (context) => {
+                            await context.sendActivity(proactiveMessage);
                         }
-                    ]
-                },
-                {
-                    type: 'Input.ChoiceSet',
-                    id: 'SingleSelectVal',
-                    label: FormInputs.Survey.questions[1].question,
-                    style: 'expanded',
-                    value: '1',
-                    choices: [
-                        {
-                            title: 'Red',
-                            value: '1'
-                        },
-                        {
-                            title: 'Green',
-                            value: '2'
-                        },
-                        {
-                            title: 'Blue',
-                            value: '3'
-                        }
-                    ]
-                },
-                {
-                    type: 'Input.ChoiceSet',
-                    id: 'MultiSelectVal',
-                    label: FormInputs.Survey.questions[2].question,
-                    isMultiSelect: true,
-                    value: '1,3',
-                    choices: [
-                        {
-                            title: 'Red',
-                            value: '1'
-                        },
-                        {
-                            title: 'Green',
-                            value: '2'
-                        },
-                        {
-                            title: 'Blue',
-                            value: '3'
-                        }
-                    ]
-                },
-                {
-                    type: 'TextBlock',
-                    size: 'medium',
-                    weight: 'bolder',
-                    text: 'Input.Toggle',
-                    horizontalAlignment: 'center',
-                    wrap: true,
-                    style: 'heading'
-                },
-                {
-                    type: 'Input.Toggle',
-                    label: 'Please accept the terms and conditions:',
-                    title: FormInputs.Survey.questions[3].question,
-                    valueOn: 'true',
-                    valueOff: 'false',
-                    id: 'AcceptsTerms',
-                    isRequired: true,
-                    errorMessage: 'Accepting the terms and conditions is required'
-                },
-                {
-                    type: 'Input.Toggle',
-                    label: 'How do you feel about red cars?',
-                    title: FormInputs.Survey.questions[4].question,
-                    valueOn: 'RedCars',
-                    valueOff: 'NotRedCars',
-                    id: 'ColorPreference'
+                    );
                 }
-            ],
-            actions: [
-                {
-                    type: 'Action.Submit',
-                    title: 'Submit',
-                    data: {
-                        id: '1234567890'
-                    }
-                },
-                {
-                    type: 'Action.ShowCard',
-                    title: 'Show Card',
-                    card: {
-                        type: 'AdaptiveCard',
-                        body: [
-                            {
-                                type: 'Input.Text',
-                                label: 'Enter comment',
-                                style: 'text',
-                                id: 'CommentVal'
-                            }
-                        ],
-                        actions: [
-                            {
-                                type: 'Action.Submit',
-                                title: 'OK'
-                            }
-                        ]
-                    }
-                }
-            ]
-        });
+            );
+        }));
+        await context.sendActivity(
+            MessageFactory.text('Message sent:' + sentMsgCout)
+        );
+    }
+
+    addConversationReference(activity) {
+        if (activity.conversation.conversationType === 'personal') {
+            const conversationReference = TurnContext.getConversationReference(activity);
+            this.conversationReferences[conversationReference.conversation.id] = conversationReference;
+        }
     }
 }
 

@@ -1,12 +1,4 @@
-// Copyright (c) Microsoft Corporation. All rights reserved.
-// Licensed under the MIT License.
-
-// index.js is used to setup and configure your bot
-
-// Import required pckages
 const path = require('path');
-
-// Read botFilePath and botFileSecret from .env file.
 const ENV_FILE = path.join(__dirname, '.env');
 require('dotenv').config({ path: ENV_FILE });
 
@@ -20,7 +12,6 @@ const {
     MemoryStorage,
     UserState,
     ConfigurationBotFrameworkAuthentication
-    // TeamsSSOTokenExchangeMiddleware
 } = require('botbuilder');
 const { TeamsBot } = require('./bots/teamsBot');
 const { MainDialog } = require('./dialogs/mainDialog');
@@ -63,7 +54,13 @@ const userState = new UserState(memoryStorage);
 // Create the main dialog.
 const dialog = new MainDialog();
 // Create the bot that will handle incoming messages.
-const bot = new TeamsBot(conversationState, userState, dialog);
+const conversationReferences = {};
+const bot = new TeamsBot(
+    conversationState,
+    userState,
+    dialog,
+    conversationReferences
+);
 // Create HTTP server.
 const server = restify.createServer();
 server.use(restify.plugins.bodyParser());
@@ -76,6 +73,27 @@ server.listen(process.env.port || process.env.PORT || 3978, function() {
 server.post('/api/messages', async (req, res) => {
     // Route received a request to adapter for processing
     await adapter.process(req, res, (context) => bot.run(context));
+});
+
+// Listen for incoming notifications and send proactive messages to users.
+server.get('/api/notify', async (req, res) => {
+    console.log(JSON.stringify(conversationReferences));
+    for (const conversationReference of Object.values(conversationReferences)) {
+        await adapter.continueConversationAsync(
+            process.env.MicrosoftAppId,
+            conversationReference,
+            async (context) => {
+                await context.sendActivity(
+                    'Hi. This is a reminder to update the skills in your profile'
+                );
+            }
+        );
+    }
+
+    res.setHeader('Content-Type', 'text/html');
+    res.writeHead(200);
+    res.write('<html><body><h1>Proactive messages have been sent.</h1></body></html>');
+    res.end();
 });
 
 // Serve static pages from the 'pages' folder.

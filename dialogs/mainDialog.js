@@ -50,7 +50,11 @@ class MainDialog extends ComponentDialog {
         dialogSet.add(this);
         const dialogContext = await dialogSet.createContext(context);
         const results = await dialogContext.continueDialog();
-        if (results.status === DialogTurnStatus.empty) {
+        const conversationType = dialogContext.context.activity.conversation.conversationType;
+        if (
+            results.status === DialogTurnStatus.empty &&
+            conversationType === 'personal'
+        ) {
             await dialogContext.beginDialog(this.id);
         }
     }
@@ -124,16 +128,14 @@ class MainDialog extends ComponentDialog {
 
     async updateUserInput(stepContext) {
         const formInput = stepContext.context.activity.value;
-        console.log(`User Input: ${ JSON.stringify(formInput) }`);
         this.userInput.data = formInput;
         return await stepContext.beginDialog(OAUTH_PROMPT);
     }
 
     async sendResults(stepContext) {
         const token = stepContext.result.token;
-        console.log(`Token: ${ JSON.stringify(token) }`);
         this.userInput.token = token;
-        console.log(this.userInput);
+        console.log('userInput', this.userInput);
         await stepContext.context.sendActivity(
             'Thanks! Your skills have been updated!'
         );
